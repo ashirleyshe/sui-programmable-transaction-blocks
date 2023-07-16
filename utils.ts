@@ -2,6 +2,7 @@ import {
   Ed25519Keypair,
   JsonRpcProvider,
   testnetConnection,
+  mainnetConnection,
   TransactionBlock,
   fromB64,
   RawSigner,
@@ -17,7 +18,7 @@ const getExecStuff = () => {
   const keypair = Ed25519Keypair.fromSecretKey(privateKey);
 
   const address = `${keypair.getPublicKey().toSuiAddress()}`;
-  const provider = new JsonRpcProvider(testnetConnection);
+  const provider = new JsonRpcProvider(mainnetConnection);
   const signer = new RawSigner(keypair, provider);
 
   return { address, provider, signer };
