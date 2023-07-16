@@ -47,4 +47,4 @@ const main = async () => {
   console.log(JSON.stringify(result));
 };
 
-main();
+main().then(console.log).catch(console.error);
