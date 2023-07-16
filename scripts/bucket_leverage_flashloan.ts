@@ -122,7 +122,6 @@ const bucket_leverage = async (
   });
 
   // calculate buck borrow amount
-  // console.log(Math.floor(leverage * input_coll * DECIMALS / 1.8));
   const borrow_buck_amount = tx.moveCall({
     target: MUL_FACTOR_TARGET,
     arguments: [
