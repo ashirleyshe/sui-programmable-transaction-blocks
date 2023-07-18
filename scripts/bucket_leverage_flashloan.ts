@@ -23,7 +23,7 @@ import {
   CETUS_BUCK_SUI_POOL,
   CETUS_GLOBAL_CONFIG,
   CETUS_SWAP_TARGET,
-  CETUS_ROUTER_SWAP_TARGET
+  CETUS_ROUTER_SWAP_TARGET,
 } from "../constants";
 dotenv.config();
 
@@ -35,11 +35,10 @@ const bucket_leverage = async (
   input_coll: number,
   leverage: number
 ) => {
-
   const tx = new TransactionBlock();
   tx.setSender(address);
 
-  // 0: update oracle
+  // update oracle
   tx.moveCall({
     target: SWITCHBOARD_UPDATE_TARGET,
     typeArguments: ["0x2::sui::SUI"],
@@ -50,7 +49,7 @@ const bucket_leverage = async (
     ],
   });
 
-  // 1: get sui price from oracle
+  // get sui price from oracle
   const [sui_oracle_price, oracle_precision] = tx.moveCall({
     target: ORACLE_GET_PRICE_TARGET,
     typeArguments: ["0x2::sui::SUI"],
@@ -58,7 +57,7 @@ const bucket_leverage = async (
   });
 
   // leverage 3x, init 10 sui
-  // 2: calculate buck amount by sui price
+  // calculate buck amount by sui price
   const buck_amount = tx.moveCall({
     target: MUL_FACTOR_TARGET,
     arguments: [
@@ -68,22 +67,23 @@ const bucket_leverage = async (
     ],
   });
 
-  // 3: flash borrow buck from tank
-  const FLASH_BORROW_BUCK_TARGET = `${MAINNET_PACKAGE_ID}::${MODULES.FLASH_BORROW_BUCK}` as Target;
+  // flash borrow buck from tank
+  const FLASH_BORROW_BUCK_TARGET =
+    `${MAINNET_PACKAGE_ID}::${MODULES.FLASH_BORROW_BUCK}` as Target;
   const [buck_balance, flash_receipt] = tx.moveCall({
     target: FLASH_BORROW_BUCK_TARGET,
     typeArguments: ["0x2::sui::SUI"],
     arguments: [tx.object(PROTOCOL_OBJECT), buck_amount],
   });
-  
-  // 4: get buck balance value
+
+  // get buck balance value
   const buck_balance_value = tx.moveCall({
     target: "0x2::balance::value",
     typeArguments: [BUCK_TYPE],
     arguments: [buck_balance],
   });
-  
-  // 4: warp balance to coin
+
+  // warp balance to coin
   const buck_coin = tx.moveCall({
     target: "0x2::coin::from_balance",
     typeArguments: [BUCK_TYPE],
@@ -96,7 +96,7 @@ const bucket_leverage = async (
     typeArguments: ["0x2::sui::SUI"],
     arguments: [],
   });
- 
+
   // --- CETUS ---
   // swap buck to sui
   const [buck_coin_out, sui_coin_out] = tx.moveCall({
@@ -125,11 +125,11 @@ const bucket_leverage = async (
 
   // merge sui to gas
   tx.mergeCoins(tx.gas, [sui_coin_out]);
-  
+
   const [sui_coin] = tx.splitCoins(tx.gas, [
     tx.pure(leverage * input_coll * DECIMALS),
   ]);
-  // 6: unwrap sui coin to balance
+  // unwrap sui coin to balance
   const sui_balance = tx.moveCall({
     target: "0x2::coin::into_balance",
     typeArguments: ["0x2::sui::SUI"],
@@ -140,13 +140,13 @@ const bucket_leverage = async (
   const borrow_buck_amount = tx.moveCall({
     target: MUL_FACTOR_TARGET,
     arguments: [
-      tx.pure(Math.floor(leverage * input_coll * DECIMALS / 1.2), "u64"),
+      tx.pure(Math.floor((leverage * input_coll * DECIMALS) / 1.2), "u64"),
       sui_oracle_price,
       oracle_precision,
     ],
   });
-  
-  // 7: open position: borrow
+
+  // open position: borrow
   const BORROW_TARGET = `${MAINNET_PACKAGE_ID}::${MODULES.BORROW}` as Target;
   const buck_output_balance = tx.moveCall({
     target: BORROW_TARGET,
@@ -161,15 +161,15 @@ const bucket_leverage = async (
     ],
   });
 
-  // 8: repay flashloan
+  // repay flashloan
   const REPAY_FLASH_BORROW_TARGET =
-  `${MAINNET_PACKAGE_ID}::${MODULES.FLASH_REPAY_BUCK}` as Target;
+    `${MAINNET_PACKAGE_ID}::${MODULES.FLASH_REPAY_BUCK}` as Target;
   tx.moveCall({
     target: REPAY_FLASH_BORROW_TARGET,
     typeArguments: ["0x2::sui::SUI"],
     arguments: [tx.object(PROTOCOL_OBJECT), buck_output_balance, flash_receipt],
   });
-  
+
   const response = await signer.dryRunTransactionBlock({
     transactionBlock: tx,
   });
