@@ -23,6 +23,7 @@ import {
   CETUS_BUCK_SUI_POOL,
   CETUS_GLOBAL_CONFIG,
   CETUS_SWAP_TARGET,
+  CETUS_ROUTER_SWAP_TARGET
 } from "../constants";
 dotenv.config();
 
@@ -82,7 +83,6 @@ const bucket_leverage = async (
     arguments: [buck_balance],
   });
   
-  // /*
   // 4: warp balance to coin
   const buck_coin = tx.moveCall({
     target: "0x2::coin::from_balance",
@@ -90,19 +90,24 @@ const bucket_leverage = async (
     arguments: [buck_balance],
   });
 
-  const vec = tx.makeMoveVec({
-    objects: [buck_coin],
+  // create zero balance coin
+  const zero_coin = tx.moveCall({
+    target: "0x2::coin::zero",
+    typeArguments: ["0x2::sui::SUI"],
+    arguments: [],
   });
-
+ 
   // --- CETUS ---
-  // 5: swap buck to sui
-  tx.moveCall({
-    target: CETUS_SWAP_TARGET,
+  // swap buck to sui
+  const [buck_coin_out, sui_coin_out] = tx.moveCall({
+    target: CETUS_ROUTER_SWAP_TARGET,
     typeArguments: [BUCK_TYPE, "0x2::sui::SUI"],
     arguments: [
       tx.object(CETUS_GLOBAL_CONFIG),
       tx.object(CETUS_BUCK_SUI_POOL),
-      vec,
+      buck_coin,
+      zero_coin,
+      tx.pure(true),
       tx.pure(true),
       buck_balance_value,
       tx.pure(0),
@@ -111,6 +116,16 @@ const bucket_leverage = async (
     ],
   });
 
+  // destory zero coin
+  tx.moveCall({
+    target: "0x2::coin::destroy_zero",
+    typeArguments: [BUCK_TYPE],
+    arguments: [buck_coin_out],
+  });
+
+  // merge sui to gas
+  tx.mergeCoins(tx.gas, [sui_coin_out]);
+  
   const [sui_coin] = tx.splitCoins(tx.gas, [
     tx.pure(leverage * input_coll * DECIMALS),
   ]);
